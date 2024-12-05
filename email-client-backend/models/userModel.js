@@ -1,0 +1,54 @@
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
+});
+
+const getUserByEmail = async (email) => {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);
+    return result.rows[0];
+};
+
+const getUserById = async (id) => {
+    const result = await pool.query('SELECT id, first_name, second_name, username, email, role FROM users WHERE id = $1 AND deleted_at IS NULL', [id]);
+    return result.rows[0];
+};
+
+const createUser = async (firstName, secondName, username, email, passwordHash, role = 'user') => {
+    await pool.query(
+        'INSERT INTO users (first_name, second_name, username, email, password_hash, role) VALUES ($1, $2, $3, $4, $5, $6)',
+        [firstName, secondName, username, email, passwordHash, role]
+    );
+};
+
+const updateUser = async (id, firstName, secondName, username, email, role) => {
+    await pool.query(
+        'UPDATE users SET first_name = $1, second_name = $2, username = $3, email = $4, role = $5 WHERE id = $6 AND deleted_at IS NULL',
+        [firstName, secondName, username, email, role, id]
+    );
+};
+
+const updateUserPassword = async (id, passwordHash) => {
+    await pool.query(
+        'UPDATE users SET password_hash = $1 WHERE id = $2 AND deleted_at IS NULL',
+        [passwordHash, id]
+    );
+};
+
+const deleteUser = async (id) => {
+    await pool.query('UPDATE users SET deleted_at = NOW() WHERE id = $1', [id]);
+};
+
+module.exports = {
+    getUserByEmail,
+    createUser,
+    getUserById,
+    updateUser,
+    updateUserPassword,
+    deleteUser,
+};

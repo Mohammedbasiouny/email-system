@@ -1,30 +1,19 @@
+require('dotenv').config();
 const express = require('express');
-const { Pool } = require('pg');
+const { sendEmail, getInboxEmails, getSentEmails, markEmailAsRead } = require('../models/emailModel');
 const verifyToken = require('../middleware/authMiddleware');
 
 const router = express.Router();
-
-// PostgreSQL connection
-const pool = new Pool({
-    user: 'postgres',
-    host: 'localhost',
-    database: 'email_system',
-    password: '123',
-    port: 5432,
-});
 
 // Send Email
 router.post('/send', verifyToken, async (req, res) => {
     const { receiverId, subject, body, cc } = req.body;
 
     try {
-        await pool.query(
-            'INSERT INTO emails (sender_id, receiver_id, cc, subject, body) VALUES ($1, $2, $3, $4, $5)',
-            [req.user.id, receiverId, cc, subject, body]
-        );
+        await sendEmail(req.user.id, receiverId, cc, subject, body);
         res.status(201).json({ message: 'Email sent successfully' });
     } catch (error) {
-        console.error(error);
+        console.error('Error sending email:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
@@ -32,13 +21,10 @@ router.post('/send', verifyToken, async (req, res) => {
 // Fetch Inbox Emails
 router.get('/inbox', verifyToken, async (req, res) => {
     try {
-        const inbox = await pool.query(
-            'SELECT * FROM emails WHERE receiver_id = $1 ORDER BY created_at DESC',
-            [req.user.id]
-        );
-        res.status(200).json(inbox.rows);
+        const inbox = await getInboxEmails(req.user.id);
+        res.status(200).json(inbox);
     } catch (error) {
-        console.error(error);
+        console.error('Error fetching inbox emails:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
@@ -46,13 +32,10 @@ router.get('/inbox', verifyToken, async (req, res) => {
 // Fetch Sent Emails
 router.get('/sent', verifyToken, async (req, res) => {
     try {
-        const sent = await pool.query(
-            'SELECT * FROM emails WHERE sender_id = $1 ORDER BY created_at DESC',
-            [req.user.id]
-        );
-        res.status(200).json(sent.rows);
+        const sent = await getSentEmails(req.user.id);
+        res.status(200).json(sent);
     } catch (error) {
-        console.error(error);
+        console.error('Error fetching sent emails:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
@@ -62,13 +45,10 @@ router.put('/read/:id', verifyToken, async (req, res) => {
     const emailId = req.params.id;
 
     try {
-        await pool.query('UPDATE emails SET is_read = TRUE WHERE id = $1 AND receiver_id = $2', [
-            emailId,
-            req.user.id,
-        ]);
+        await markEmailAsRead(emailId, req.user.id);
         res.status(200).json({ message: 'Email marked as read' });
     } catch (error) {
-        console.error(error);
+        console.error('Error marking email as read:', error);
         res.status(500).json({ message: 'Internal server error' });
     }
 });
