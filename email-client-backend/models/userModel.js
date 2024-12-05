@@ -20,10 +20,14 @@ const getUserById = async (id) => {
 };
 
 const createUser = async (firstName, secondName, username, email, passwordHash, role = 'user') => {
-    await pool.query(
-        'INSERT INTO users (first_name, second_name, username, email, password_hash, role) VALUES ($1, $2, $3, $4, $5, $6)',
+    const result = await pool.query(
+        'INSERT INTO users (first_name, second_name, username, email, password_hash, role) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
         [firstName, secondName, username, email, passwordHash, role]
     );
+    const userId = result.rows[0].id;
+
+    // Insert default folders for the new user
+    await pool.query('INSERT INTO folders (user_id, name) VALUES ($1, $2), ($1, $3), ($1, $4)', [userId, 'Inbox', 'Sent', 'Recent Delete']);
 };
 
 const updateUser = async (id, firstName, secondName, username, email, role) => {
@@ -42,6 +46,7 @@ const updateUserPassword = async (id, passwordHash) => {
 
 const deleteUser = async (id) => {
     await pool.query('UPDATE users SET deleted_at = NOW() WHERE id = $1', [id]);
+    await pool.query('UPDATE emails SET is_user_deleted = TRUE WHERE sender_id = $1 OR receiver_id = $1', [id]);
 };
 
 module.exports = {

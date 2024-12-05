@@ -18,9 +18,6 @@ const pool = new Pool({
     port: process.env.DB_PORT,
 });
 
-// Middleware to verify JWT
-// Remove the duplicate verifyToken declaration
-
 // User Registration (Sign Up)
 router.post('/signup', async (req, res) => {
     const { firstName, secondName, username, password } = req.body;
@@ -206,7 +203,7 @@ router.delete('/admin/users/:id', verifyToken, verifyAdmin, async (req, res) => 
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Soft delete the user
+        // Soft delete the user and mark related emails
         await deleteUser(id);
 
         res.status(200).json({ message: 'User deleted successfully' });
