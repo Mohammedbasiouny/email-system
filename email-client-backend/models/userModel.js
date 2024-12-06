@@ -1,13 +1,4 @@
-const { Pool } = require('pg');
-require('dotenv').config();
-
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-});
+const pool = require('../config/dbConfig');
 
 const getUserByEmail = async (email) => {
     const result = await pool.query('SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL', [email]);

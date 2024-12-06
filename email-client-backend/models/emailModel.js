@@ -1,31 +1,25 @@
-const { Pool } = require('pg');
+const pool = require('../config/dbConfig');
 require('dotenv').config();
 
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-});
+const sendEmail = async (senderId, receiverIds, cc, subject, body) => {
+    for (const receiverId of receiverIds) {
+        // Insert the email into the emails table
+        const result = await pool.query(
+            'INSERT INTO emails (sender_id, receiver_id, cc, subject, body) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [senderId, receiverId, cc, subject, body]
+        );
+        const emailId = result.rows[0].id;
 
-const sendEmail = async (senderId, receiverId, cc, subject, body) => {
-    // Insert the email into the emails table
-    const result = await pool.query(
-        'INSERT INTO emails (sender_id, receiver_id, cc, subject, body) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-        [senderId, receiverId, cc, subject, body]
-    );
-    const emailId = result.rows[0].id;
+        // Get the folder IDs for Sent and Inbox
+        const sentFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [senderId, 'Sent']);
+        const inboxFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [receiverId, 'Inbox']);
 
-    // Get the folder IDs for Sent and Inbox
-    const sentFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [senderId, 'Sent']);
-    const inboxFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [receiverId, 'Inbox']);
+        // Associate the email with the Sent folder for the sender
+        await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, sentFolder.rows[0].id]);
 
-    // Associate the email with the Sent folder for the sender
-    await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, sentFolder.rows[0].id]);
-
-    // Associate the email with the Inbox folder for the receiver
-    await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+        // Associate the email with the Inbox folder for the receiver
+        await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+    }
 };
 
 const getInboxEmails = async (receiverId) => {
@@ -74,8 +68,6 @@ const recoverEmail = async (emailId, userId) => {
 const getTrashEmails = async (userId) => {
     const trashFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [userId, 'Recent Delete']);
     const result = await pool.query(
-        'SELECT e.* FROM emails e JOIN email_folders ef ON e.id = ef.email_id WHERE ef.folder_id = $1 AND (e.sender_id = $2 OR e.receiver_id = $2) AND e.deleted_at IS NOT NULL ORDER BY e.deleted_at DESC',
-        [trashFolder.rows[0].id, userId]
     );
     return result.rows;
 };
@@ -158,6 +150,16 @@ const replyAllEmail = async (originalEmailId, senderId, body) => {
                 );
             }
         }
+    }
+
+    // Send reply to all To recipients (excluding the original sender)
+    const toRecipients = await pool.query('SELECT id FROM users WHERE id != $1 AND id IN (SELECT receiver_id FROM emails WHERE id = $2)', [senderId, originalEmailId]);
+    for (const toRecipient of toRecipients.rows) {
+        const toInboxFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [toRecipient.id, 'Inbox']);
+        await pool.query(
+            'INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)',
+            [emailId, toInboxFolder.rows[0].id]
+        );
     }
 };
 
