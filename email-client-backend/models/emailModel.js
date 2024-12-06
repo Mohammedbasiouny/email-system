@@ -2,23 +2,28 @@ const pool = require('../config/dbConfig');
 require('dotenv').config();
 
 const sendEmail = async (senderId, receiverIds, cc, subject, body) => {
-    for (const receiverId of receiverIds) {
-        // Insert the email into the emails table
-        const result = await pool.query(
-            'INSERT INTO emails (sender_id, receiver_id, cc, subject, body) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-            [senderId, receiverId, cc, subject, body]
-        );
-        const emailId = result.rows[0].id;
+    try {
+        for (const receiverId of receiverIds) {
+            // Insert the email into the emails table
+            const result = await pool.query(
+                'INSERT INTO emails (sender_id, receiver_id, cc, subject, body) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+                [senderId, receiverId, cc, subject, body]
+            );
+            const emailId = result.rows[0].id;
 
-        // Get the folder IDs for Sent and Inbox
-        const sentFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [senderId, 'Sent']);
-        const inboxFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [receiverId, 'Inbox']);
+            // Get the folder IDs for Sent and Inbox
+            const sentFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [senderId, 'Sent']);
+            const inboxFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [receiverId, 'Inbox']);
 
-        // Associate the email with the Sent folder for the sender
-        await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, sentFolder.rows[0].id]);
+            // Associate the email with the Sent folder for the sender
+            await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, sentFolder.rows[0].id]);
 
-        // Associate the email with the Inbox folder for the receiver
-        await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+            // Associate the email with the Inbox folder for the receiver
+            await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+        }
+    } catch (error) {
+        console.error('Error sending email:', error);
+        throw error;
     }
 };
 
@@ -68,20 +73,49 @@ const recoverEmail = async (emailId, userId) => {
 const getTrashEmails = async (userId) => {
     const trashFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [userId, 'Recent Delete']);
     const result = await pool.query(
+        'SELECT e.* FROM emails e JOIN email_folders ef ON e.id = ef.email_id WHERE ef.folder_id = $1 AND (e.sender_id = $2 OR e.receiver_id = $2) AND e.deleted_at IS NOT NULL ORDER BY e.created_at DESC',
+        [trashFolder.rows[0].id, userId]
     );
     return result.rows;
 };
 
 const createFolder = async (userId, name) => {
-    await pool.query('INSERT INTO folders (user_id, name) VALUES ($1, $2)', [userId, name]);
+    try {
+        const folderExists = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [userId, name]);
+        if (folderExists.rows.length > 0) {
+            throw new Error('Folder already exists');
+        }
+        await pool.query('INSERT INTO folders (user_id, name) VALUES ($1, $2)', [userId, name]);
+    } catch (error) {
+        console.error('Error creating folder:', error);
+        throw error;
+    }
 };
 
 const renameFolder = async (folderId, userId, newName) => {
-    await pool.query('UPDATE folders SET name = $1 WHERE id = $2 AND user_id = $3', [newName, folderId, userId]);
+    try {
+        const folder = await pool.query('SELECT id FROM folders WHERE id = $1 AND user_id = $2', [folderId, userId]);
+        if (folder.rows.length === 0) {
+            throw new Error('Folder not found');
+        }
+        await pool.query('UPDATE folders SET name = $1 WHERE id = $2 AND user_id = $3', [newName, folderId, userId]);
+    } catch (error) {
+        console.error('Error renaming folder:', error);
+        throw error;
+    }
 };
 
 const deleteFolder = async (folderId, userId) => {
-    await pool.query('DELETE FROM folders WHERE id = $1 AND user_id = $2', [folderId, userId]);
+    try {
+        const folder = await pool.query('SELECT id FROM folders WHERE id = $1 AND user_id = $2', [folderId, userId]);
+        if (folder.rows.length === 0) {
+            throw new Error('Folder not found');
+        }
+        await pool.query('DELETE FROM folders WHERE id = $1 AND user_id = $2', [folderId, userId]);
+    } catch (error) {
+        console.error('Error deleting folder:', error);
+        throw error;
+    }
 };
 
 const moveEmailToFolder = async (emailId, userId, folderId) => {

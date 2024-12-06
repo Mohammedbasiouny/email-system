@@ -1,5 +1,7 @@
 const express = require('express');
-const { signup, login, getUsers, updateUserDetails, updateUserName, updateUserRole, updateUserPassword, deleteUser, updateProfile, getProfile } = require('../controllers/userController');
+const {
+    signup, login, getUsers, updateUserDetails, updateUserName, updateUserRole, updateUserPassword, deleteUser, updateProfile, getProfile
+} = require('../controllers/userController');
 const verifyAdmin = require('../middleware/adminMiddleware');
 const verifyToken = require('../middleware/authMiddleware');
 
@@ -12,15 +14,17 @@ router.post('/signup', signup);
 router.post('/login', login);
 
 // Admin-specific routes
-router.get('/admin/users', verifyToken, verifyAdmin, getUsers);
-router.put('/admin/users/:id', verifyToken, verifyAdmin, updateUserDetails);
-router.put('/admin/users/:id/name', verifyToken, verifyAdmin, updateUserName);
-router.put('/admin/users/:id/role', verifyToken, verifyAdmin, updateUserRole);
-router.put('/admin/users/:id/password', verifyToken, verifyAdmin, updateUserPassword);
-router.delete('/admin/users/:id', verifyToken, verifyAdmin, deleteUser);
+router.use(verifyToken, verifyAdmin);
+router.get('/admin/users', getUsers);
+router.put('/admin/users/:id', updateUserDetails);
+router.put('/admin/users/:id/name', updateUserName);
+router.put('/admin/users/:id/role', updateUserRole);
+router.put('/admin/users/:id/password', updateUserPassword);
+router.delete('/admin/users/:id', deleteUser);
 
 // User-specific routes
-router.put('/profile', verifyToken, updateProfile);
-router.get('/profile', verifyToken, getProfile);
+router.use(verifyToken);
+router.put('/profile', updateProfile);
+router.get('/profile', getProfile);
 
 module.exports = router;

@@ -20,10 +20,8 @@ app.use((err, req, res, next) => {
     next();
 });
 
-// User routes
+// Routes
 app.use('/api/users', userRoutes);
-
-// Email routes
 app.use('/api/emails', emailRoutes);
 
 // Default route
@@ -31,6 +29,6 @@ app.get('/', (req, res) => {
     res.send('Welcome to the Email Client API');
 });
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
