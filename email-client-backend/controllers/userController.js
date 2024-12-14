@@ -41,7 +41,7 @@ const login = async (req, res) => {
 
         const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-        res.status(200).json({ token });
+        res.status(200).json({ token, role: user.role }); // Include the user's role in the response
     } catch (error) {
         console.error('Error during user login:', error);
         res.status(500).json({ message: 'Internal server error' });
@@ -207,6 +207,7 @@ const getProfile = async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+
 
 module.exports = {
     signup,
