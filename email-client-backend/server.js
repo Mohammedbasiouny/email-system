@@ -6,7 +6,7 @@ const userRoutes = require('./routes/userRoutes');
 const emailRoutes = require('./routes/emailRoutes');
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -20,8 +20,10 @@ app.use((err, req, res, next) => {
     next();
 });
 
-// Routes
+// Use the userRoutes
 app.use('/api/users', userRoutes);
+
+// Use the emailRoutes
 app.use('/api/emails', emailRoutes);
 
 // Default route
@@ -30,5 +32,5 @@ app.get('/', (req, res) => {
 });
 
 const server = app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server running on port ${port}`);
 });

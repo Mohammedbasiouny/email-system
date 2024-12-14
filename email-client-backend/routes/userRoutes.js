@@ -13,7 +13,6 @@ router.post('/signup', signup);
 // User Login (Sign In)
 router.post('/login', login);
 
-
 // User-specific routes
 router.use(verifyToken);
 router.put('/profile', updateProfile);
