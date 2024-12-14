@@ -1,10 +1,10 @@
-const { sendEmail, getInboxEmails, getSentEmails, markEmailAsRead, moveToTrash, recoverEmail, getTrashEmails, createFolder, renameFolder, deleteFolder, moveEmailToFolder, replyEmail, replyAllEmail } = require('../models/emailModel');
+const { sendEmail, getInboxEmails, getSentEmails, markEmailAsRead, moveToTrash, recoverEmail, getTrashEmails, createFolder, renameFolder, deleteFolder, moveEmailToFolder, replyEmail, replyAllEmail, forwardEmail, markEmailAsUnread, flagEmailAsImportant, saveDraft } = require('../models/emailModel');
 
 const sendEmailController = async (req, res) => {
-    const { receiverIds, subject, body, cc } = req.body;
+    const { receiverIds, subject, body, cc, draftId } = req.body;
 
     try {
-        await sendEmail(req.user.id, receiverIds, cc, subject, body);
+        await sendEmail(req.user.id, receiverIds, cc, subject, body, draftId);
         res.status(201).json({ message: 'Email sent successfully' });
     } catch (error) {
         console.error('Error sending email:', error);
@@ -165,6 +165,59 @@ const replyAllEmailController = async (req, res) => {
     }
 };
 
+// Forward Email
+const forwardEmailController = async (req, res) => {
+    const { id } = req.params;
+    const { receiverIds, body } = req.body;
+
+    try {
+        await forwardEmail(id, req.user.id, receiverIds, body);
+        res.status(201).json({ message: 'Email forwarded successfully' });
+    } catch (error) {
+        console.error('Error forwarding email:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Mark Email as Unread
+const markEmailAsUnreadController = async (req, res) => {
+    const emailId = req.params.id;
+
+    try {
+        await markEmailAsUnread(emailId, req.user.id);
+        res.status(200).json({ message: 'Email marked as unread' });
+    } catch (error) {
+        console.error('Error marking email as unread:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Flag Email as Important
+const flagEmailAsImportantController = async (req, res) => {
+    const emailId = req.params.id;
+
+    try {
+        await flagEmailAsImportant(emailId, req.user.id);
+        res.status(200).json({ message: 'Email flagged as important' });
+    } catch (error) {
+        console.error('Error flagging email as important:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Save Draft
+const saveDraftController = async (req, res) => {
+    const { receiverIds, subject, body, cc } = req.body;
+
+    try {
+        const draftId = await saveDraft(req.user.id, receiverIds, cc, subject, body);
+        res.status(201).json({ message: 'Draft saved successfully', draftId });
+    } catch (error) {
+        console.error('Error saving draft:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
 module.exports = {
     sendEmail: sendEmailController,
     getInboxEmails: getInboxEmailsController,
@@ -179,4 +232,8 @@ module.exports = {
     moveEmailToFolder: moveEmailToFolderController,
     replyEmail: replyEmailController,
     replyAllEmail: replyAllEmailController,
+    forwardEmail: forwardEmailController,
+    markEmailAsUnread: markEmailAsUnreadController,
+    flagEmailAsImportant: flagEmailAsImportantController,
+    saveDraft: saveDraftController,
 };

@@ -1,28 +1,80 @@
 const pool = require('../config/dbConfig');
 require('dotenv').config();
 
-const sendEmail = async (senderId, receiverIds, cc, subject, body) => {
+const sendEmail = async (senderId, receiverIds, cc, subject, body, draftId = null) => {
     try {
-        for (const receiverId of receiverIds) {
-            // Insert the email into the emails table
-            const result = await pool.query(
-                'INSERT INTO emails (sender_id, receiver_id, cc, subject, body) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-                [senderId, receiverId, cc, subject, body]
+        if (draftId) {
+            // Update the draft to mark it as sent
+            await pool.query(
+                'UPDATE emails SET is_draft = FALSE, receiver_id = $1, cc = $2, subject = $3, body = $4 WHERE id = $5',
+                [receiverIds.join(','), cc, subject, body, draftId]
             );
-            const emailId = result.rows[0].id;
+        } else {
+            // Handle primary recipients (receiverIds)
+            for (const receiverId of receiverIds) {
+                // Insert the email into the emails table
+                const result = await pool.query(
+                    'INSERT INTO emails (sender_id, receiver_id, cc, subject, body) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+                    [senderId, receiverId, cc, subject, body]
+                );
+                const emailId = result.rows[0].id;
 
-            // Get the folder IDs for Sent and Inbox
-            const sentFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [senderId, 'Sent']);
-            const inboxFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [receiverId, 'Inbox']);
+                // Get the folder IDs for Sent and Inbox
+                const sentFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [senderId, 'Sent']);
+                const inboxFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [receiverId, 'Inbox']);
 
-            // Associate the email with the Sent folder for the sender
-            await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, sentFolder.rows[0].id]);
+                // Associate the email with the Sent folder for the sender
+                await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, sentFolder.rows[0].id]);
 
-            // Associate the email with the Inbox folder for the receiver
-            await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+                // Associate the email with the Inbox folder for the receiver
+                await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+            }
+
+            // Handle CC recipients
+            if (cc) {
+                const ccRecipients = cc.split(',').map(email => email.trim());
+                for (const ccRecipient of ccRecipients) {
+                    // Get the user ID for the CC recipient
+                    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', [ccRecipient]);
+                    if (userResult.rows.length === 0) {
+                        throw new Error(`User with email ${ccRecipient} not found`);
+                    }
+                    const ccUserId = userResult.rows[0].id;
+
+                    // Insert the email into the emails table
+                    const result = await pool.query(
+                        'INSERT INTO emails (sender_id, receiver_id, cc, subject, body) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+                        [senderId, ccUserId, cc, subject, body]
+                    );
+                    const emailId = result.rows[0].id;
+
+                    // Get the folder IDs for Sent and Inbox
+                    const sentFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [senderId, 'Sent']);
+                    const inboxFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [ccUserId, 'Inbox']);
+
+                    // Associate the email with the Sent folder for the sender
+                    await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, sentFolder.rows[0].id]);
+
+                    // Associate the email with the Inbox folder for the CC recipient
+                    await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+                }
+            }
         }
     } catch (error) {
         console.error('Error sending email:', error);
+        throw error;
+    }
+};
+
+const saveDraft = async (senderId, receiverIds, cc, subject, body) => {
+    try {
+        const result = await pool.query(
+            'INSERT INTO emails (sender_id, receiver_id, cc, subject, body, is_draft) VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING id',
+            [senderId, receiverIds.join(','), cc, subject, body]
+        );
+        return result.rows[0].id;
+    } catch (error) {
+        console.error('Error saving draft:', error);
         throw error;
     }
 };
@@ -58,7 +110,16 @@ const moveToTrash = async (emailId, userId) => {
         emailId,
         userId,
     ]);
-    await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, trashFolder.rows[0].id]);
+
+    // Check if the email is already associated with the Trash folder
+    const existingAssociation = await pool.query(
+        'SELECT * FROM email_folders WHERE email_id = $1 AND folder_id = $2',
+        [emailId, trashFolder.rows[0].id]
+    );
+
+    if (existingAssociation.rows.length === 0) {
+        await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, trashFolder.rows[0].id]);
+    }
 };
 
 const recoverEmail = async (emailId, userId) => {
@@ -67,7 +128,16 @@ const recoverEmail = async (emailId, userId) => {
         emailId,
         userId,
     ]);
-    await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+
+    // Check if the email is already associated with the Inbox folder
+    const existingAssociation = await pool.query(
+        'SELECT * FROM email_folders WHERE email_id = $1 AND folder_id = $2',
+        [emailId, inboxFolder.rows[0].id]
+    );
+
+    if (existingAssociation.rows.length === 0) {
+        await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+    }
 };
 
 const getTrashEmails = async (userId) => {
@@ -147,6 +217,7 @@ const replyEmail = async (originalEmailId, senderId, body) => {
 };
 
 const replyAllEmail = async (originalEmailId, senderId, body) => {
+    // Fetch the original email
     const originalEmail = await pool.query('SELECT * FROM emails WHERE id = $1', [originalEmailId]);
     const receiverId = originalEmail.rows[0].sender_id;
     const subject = `Re: ${originalEmail.rows[0].subject}`;
@@ -197,6 +268,45 @@ const replyAllEmail = async (originalEmailId, senderId, body) => {
     }
 };
 
+const forwardEmail = async (originalEmailId, senderId, receiverIds, body) => {
+    const originalEmail = await pool.query('SELECT * FROM emails WHERE id = $1', [originalEmailId]);
+    const subject = `Fwd: ${originalEmail.rows[0].subject}`;
+    const originalBody = originalEmail.rows[0].body;
+
+    for (const receiverId of receiverIds) {
+        // Insert the forwarded email into the emails table
+        const result = await pool.query(
+            'INSERT INTO emails (sender_id, receiver_id, cc, subject, body) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [senderId, receiverId, originalEmail.rows[0].cc, subject, `${body}\n\n--- Forwarded message ---\n\n${originalBody}`]
+        );
+        const emailId = result.rows[0].id;
+
+        // Get the folder IDs for Sent and Inbox
+        const sentFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [senderId, 'Sent']);
+        const inboxFolder = await pool.query('SELECT id FROM folders WHERE user_id = $1 AND name = $2', [receiverId, 'Inbox']);
+
+        // Associate the forwarded email with the Sent folder for the sender
+        await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, sentFolder.rows[0].id]);
+
+        // Associate the forwarded email with the Inbox folder for the receiver
+        await pool.query('INSERT INTO email_folders (email_id, folder_id) VALUES ($1, $2)', [emailId, inboxFolder.rows[0].id]);
+    }
+};
+
+const markEmailAsUnread = async (emailId, receiverId) => {
+    await pool.query('UPDATE emails SET is_read = FALSE WHERE id = $1 AND receiver_id = $2', [
+        emailId,
+        receiverId,
+    ]);
+};
+
+const flagEmailAsImportant = async (emailId, userId) => {
+    await pool.query('UPDATE emails SET is_important = TRUE WHERE id = $1 AND (sender_id = $2 OR receiver_id = $2)', [
+        emailId,
+        userId,
+    ]);
+};
+
 module.exports = {
     sendEmail,
     getInboxEmails,
@@ -211,4 +321,8 @@ module.exports = {
     moveEmailToFolder,
     replyEmail,
     replyAllEmail,
+    forwardEmail,
+    markEmailAsUnread,
+    flagEmailAsImportant,
+    saveDraft,
 };
