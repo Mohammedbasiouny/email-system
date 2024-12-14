@@ -1,0 +1,120 @@
+.login-container {
+  max-width: 400px;
+  margin: 50px auto;
+  padding: 30px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background-color: #f9f9f9;
+  animation: fadeIn 1s ease-in-out, pulse 2s infinite;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.login-container h2 {
+  text-align: center;
+  color: #333;
+  margin-bottom: 20px;
+  font-family: 'Arial', sans-serif;
+  animation: slideIn 1s ease-in-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.login-container form div {
+  margin-bottom: 20px;
+  animation: fadeIn 1s ease-in-out;
+}
+
+.login-container label {
+  display: block;
+  margin-bottom: 8px;
+  color: #555;
+  font-family: 'Arial', sans-serif;
+}
+
+.login-container input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-sizing: border-box;
+  font-family: 'Arial', sans-serif;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.login-container input:focus {
+  border-color: #007bff;
+  outline: none;
+  box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+}
+
+.login-container button {
+  width: 100%;
+  padding: 12px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'Arial', sans-serif;
+  font-size: 16px;
+  transition: background-color 0.3s, transform 0.3s;
+}
+
+.login-container button:hover {
+  background-color: #0056b3;
+  transform: translateY(-2px);
+}
+
+.login-container button:active {
+  background-color: #004494;
+  transform: translateY(0);
+}
+
+.register-link {
+  text-align: center;
+  margin-top: 20px;
+  font-family: 'Arial', sans-serif;
+  animation: fadeIn 1s ease-in-out;
+}
+
+.register-link a {
+  color: #007bff;
+  text-decoration: none;
+  transition: text-decoration 0.3s;
+}
+
+.register-link a:hover {
+  text-decoration: underline;
+}
